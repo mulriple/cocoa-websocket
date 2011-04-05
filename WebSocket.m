@@ -1,31 +1,22 @@
 //
 //  WebSocket.m
+//  Zimt
 //
-//  Originally created for Zimt by Esad Hajdarevic on 2/14/10.
+//  Created by Esad Hajdarevic on 2/14/10.
 //  Copyright 2010 OpenResearch Software Development OG. All rights reserved.
-//
-//  Erich Ocean made the code more generic.
-//
-//  Tobias Rodäbel implemented support for draft-hixie-thewebsocketprotocol-76.
 //
 
 #import "WebSocket.h"
 #import "AsyncSocket.h"
 
-#import <CommonCrypto/CommonDigest.h>
 
-NSString * const WebSocketErrorDomain = @"WebSocketErrorDomain";
-NSString * const WebSocketException   = @"WebSocketException";
+NSString* const WebSocketErrorDomain = @"WebSocketErrorDomain";
+NSString* const WebSocketException = @"WebSocketException";
 
 enum {
     WebSocketTagHandshake = 0,
     WebSocketTagMessage = 1
 };
-
-typedef struct SecKey {
-    uint32_t num;
-    NSString *key;
-} SecKey;
 
 #define HANDSHAKE_REQUEST @"GET %@ HTTP/1.1\r\n" \
                            "Upgrade: WebSocket\r\n" \
@@ -34,33 +25,13 @@ typedef struct SecKey {
                            "Sec-WebSocket-Key1: %@\r\n" \
                            "Sec-WebSocket-Key2: %@\r\n" \
                            "Host: %@\r\n" \
-                           "Origin: %@\r\n\r\n"
-
-
-@interface NSData (md5)
-
-- (NSData *) MD5;
-
-@end
-
-
-@implementation NSData (md5)
-
-- (NSData *) MD5 
-{
-    NSMutableData *digest = [NSMutableData dataWithLength:CC_MD5_DIGEST_LENGTH];
-
-    CC_MD5([self bytes], [self length], [digest mutableBytes]);
-
-    return digest;
-}
-
-@end
+                           "Origin: %@\r\n" \
+                           "\r\n%@"
 
 
 @implementation WebSocket
 
-@synthesize delegate, url, origin, connected, expectedChallenge, runLoopModes;
+@synthesize delegate, url, origin, connected, runLoopModes;
 
 #pragma mark Initializers
 
@@ -68,7 +39,7 @@ typedef struct SecKey {
     return [[[WebSocket alloc] initWithURLString:urlString delegate:aDelegate] autorelease];
 }
 
-- (id)initWithURLString:(NSString *)urlString delegate:(id<WebSocketDelegate>)aDelegate {
+-(id)initWithURLString:(NSString *)urlString delegate:(id<WebSocketDelegate>)aDelegate {
     self = [super init];
     if (self) {
         self.delegate = aDelegate;
@@ -84,31 +55,31 @@ typedef struct SecKey {
 
 #pragma mark Delegate dispatch methods
 
-- (void)_dispatchFailure:(NSNumber*)code {
+-(void)_dispatchFailure:(NSNumber*)code {
     if(delegate && [delegate respondsToSelector:@selector(webSocket:didFailWithError:)]) {
         [delegate webSocket:self didFailWithError:[NSError errorWithDomain:WebSocketErrorDomain code:[code intValue] userInfo:nil]];
     }
 }
 
-- (void)_dispatchClosed {
+-(void)_dispatchClosed {
     if (delegate && [delegate respondsToSelector:@selector(webSocketDidClose:)]) {
         [delegate webSocketDidClose:self];
     }
 }
 
-- (void)_dispatchOpened {
+-(void)_dispatchOpened {
     if (delegate && [delegate respondsToSelector:@selector(webSocketDidOpen:)]) {
         [delegate webSocketDidOpen:self];
     }
 }
 
-- (void)_dispatchMessageReceived:(NSString*)message {
+-(void)_dispatchMessageReceived:(NSString*)message {
     if (delegate && [delegate respondsToSelector:@selector(webSocket:didReceiveMessage:)]) {
         [delegate webSocket:self didReceiveMessage:message];
     }
 }
 
-- (void)_dispatchMessageSent {
+-(void)_dispatchMessageSent {
     if (delegate && [delegate respondsToSelector:@selector(webSocketDidSendMessage:)]) {
         [delegate webSocketDidSendMessage:self];
     }
@@ -120,17 +91,14 @@ typedef struct SecKey {
     [socket readDataToData:[NSData dataWithBytes:"\xFF" length:1] withTimeout:-1 tag:WebSocketTagMessage];
 }
 
-- (struct SecKey)_makeKey {
-
-    struct SecKey seckey;
+-(NSString *)_makeKey {
     uint32_t spaces;
-    uint32_t max, num, prod;
+    uint32_t num, prod;
     NSInteger keylen;
     unichar letter;
 
     spaces = (arc4random() % 12) + 1;
-    max = (arc4random() % 4294967295U) / spaces;
-    num = arc4random() % max;
+    num = arc4random() % (4294967295U / spaces);
     prod = spaces * num;
 
     NSMutableString *key = [NSMutableString stringWithFormat:@"%ld", prod];
@@ -140,7 +108,7 @@ typedef struct SecKey {
     for (NSInteger i=0; i<keylen; i++) {
 
         if ((arc4random() % 2) == 0)
-            letter = (arc4random() % (46 - 33 + 1)) + 33;
+            letter = (arc4random() % (64 - 33 + 1)) + 33;
         else
             letter = (arc4random() % (126 - 58 + 1)) + 58;
 
@@ -152,37 +120,23 @@ typedef struct SecKey {
     for (uint32_t i=0; i<spaces; i++)
         [key insertString:@" " atIndex:((arc4random() % (keylen-2))+1)];
 
-    seckey.num = num;
-    seckey.key = key;
-
-    return seckey;
-}
-
-- (void)_makeChallengeNumber:(uint32_t)number withBuffer:(unsigned char *)buf {
-
-    unsigned char *p = buf + 3;
-
-    for (int i = 0; i < 4; i++) {
-        *p = number & 0xFF;
-        --p;
-        number >>= 8;
-    }
+    return key;
 }
 
 #pragma mark Public interface
 
-- (void)close {
+-(void)close {
     [socket disconnectAfterReadingAndWriting];
 }
 
-- (void)open {
+-(void)open {
     if (!connected) {
         [socket connectToHost:url.host onPort:[url.port intValue] withTimeout:5 error:nil];
         if (runLoopModes) [socket setRunLoopModes:runLoopModes];
     }
 }
 
-- (void)send:(NSString*)message {
+-(void)send:(NSString*)message {
     NSMutableData* data = [NSMutableData data];
     [data appendBytes:"\x00" length:1];
     [data appendData:[message dataUsingEncoding:NSUTF8StringEncoding]];
@@ -192,11 +146,11 @@ typedef struct SecKey {
 
 #pragma mark AsyncSocket delegate methods
 
-- (void)onSocketDidDisconnect:(AsyncSocket *)sock {
+-(void)onSocketDidDisconnect:(AsyncSocket *)sock {
     connected = NO;
 }
 
-- (void)onSocket:(AsyncSocket *)sock willDisconnectWithError:(NSError *)err {
+-(void)onSocket:(AsyncSocket *)sock willDisconnectWithError:(NSError *)err {
     if (!connected) {
         [self _dispatchFailure:[NSNumber numberWithInt:WebSocketErrorConnectionFailed]];
     } else {
@@ -210,57 +164,35 @@ typedef struct SecKey {
 
     NSString *requestPath = (url.query) ? [NSString stringWithFormat:@"%@?%@", url.path, url.query] : url.path;
 
-    SecKey seckey1 = [self _makeKey];
-    SecKey seckey2 = [self _makeKey];
-
-    NSString *key1 = seckey1.key;
-    NSString *key2 = seckey2.key;
-
-    NSMutableData *key3 = [NSMutableData dataWithLength:8];
+    NSString *key1 = [self _makeKey];
+    NSString *key2 = [self _makeKey];
+    NSMutableString *key3 = [NSMutableString string];
 
     for (int i=0; i<8; i++) {
-        const unichar letter = arc4random() % 126;
-        [key3 appendData:[NSData dataWithBytes:&letter length:1]];
+        unichar letter = arc4random() % 126;
+        [key3 appendString:[[[NSString alloc] initWithCharacters:&letter length:1] autorelease]];
     }
 
-    unsigned char bytes[8];
-    [self _makeChallengeNumber:seckey1.num withBuffer:&bytes[0]];
-    [self _makeChallengeNumber:seckey2.num withBuffer:&bytes[4]];
-
-    NSMutableData *challenge = [NSMutableData dataWithBytes:bytes length:sizeof(bytes)];
-    [challenge appendData:key3];
-
-    self.expectedChallenge = [challenge MD5];
-
-    NSString *headers = [NSString stringWithFormat:HANDSHAKE_REQUEST,
+    NSString *request = [NSString stringWithFormat:HANDSHAKE_REQUEST,
                                                    requestPath,
                                                    key1,
                                                    key2,
                                                    url.host,
-                                                   requestOrigin];
+                                                   requestOrigin,
+                                                   key3];
 
-    NSMutableData *request = [NSMutableData dataWithData:[headers dataUsingEncoding:NSASCIIStringEncoding]];
-    [request appendData:key3];
-
-    [socket writeData:request withTimeout:-1 tag:WebSocketTagHandshake];
+    [socket writeData:[request dataUsingEncoding:NSASCIIStringEncoding] withTimeout:-1 tag:WebSocketTagHandshake];
 }
 
-- (void)onSocket:(AsyncSocket *)sock didWriteDataWithTag:(long)tag {
-    switch (tag) {
-        case WebSocketTagHandshake:
-            [sock readDataWithTimeout:-1 tag:WebSocketTagHandshake];
-            break;
-
-        case WebSocketTagMessage:
-            [self _dispatchMessageSent];
-            break;
-
-        default:
-            break;
+-(void)onSocket:(AsyncSocket *)sock didWriteDataWithTag:(long)tag {
+    if (tag == WebSocketTagHandshake) {
+        [sock readDataWithTimeout:-1 tag:WebSocketTagHandshake];
+    } else if (tag == WebSocketTagMessage) {
+        [self _dispatchMessageSent];
     }
 }
 
-- (void)onSocket:(AsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
+-(void)onSocket:(AsyncSocket *)sock didReadData:(NSData *)data withTag:(long)tag {
 
     if (tag == WebSocketTagHandshake) {
 
@@ -282,12 +214,8 @@ typedef struct SecKey {
         }
 
         if (statusCode == 101 && [upgrade isEqualToString:@"WebSocket"] && [connection isEqualToString:@"Upgrade"]) {
-            body = [(NSData *)CFHTTPMessageCopyBody(message) autorelease];
 
-            if (![body isEqualToData:self.expectedChallenge]) {
-                [self _dispatchFailure:[NSNumber numberWithInt:WebSocketErrorHandshakeFailed]];
-                return;
-            }
+            body = [(NSData *)CFHTTPMessageCopyBody(message) autorelease];
 
             connected = YES;
 
@@ -298,13 +226,9 @@ typedef struct SecKey {
         }
 
     } else if (tag == WebSocketTagMessage) {
-
         char firstByte = 0xFF;
-
         [data getBytes:&firstByte length:1];
-
         if (firstByte != 0x00) return; // Discard message
-
         NSString *message = [[[NSString alloc] initWithData:[data subdataWithRange:NSMakeRange(1, [data length]-2)] encoding:NSUTF8StringEncoding] autorelease];
 
         [self _dispatchMessageReceived:message];
@@ -314,11 +238,10 @@ typedef struct SecKey {
 
 #pragma mark Destructor
 
-- (void)dealloc {
+-(void)dealloc {
     socket.delegate = nil;
     [socket disconnect];
     [socket release];
-    [expectedChallenge release];
     [runLoopModes release];
     [url release];
     [super dealloc];
