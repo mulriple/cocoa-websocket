@@ -2151,7 +2151,7 @@ static void MyCFSocketCallback(CFSocketRef, CFSocketCallBackType, CFDataRef, con
 							{
 								buf = realloc(buf, result);
 							}
-							theCurrentReceive->buffer = [[NSData alloc] initWithBytesNoCopy:buf
+							theCurrentReceive->buffer = [[NSMutableData alloc] initWithBytesNoCopy:buf
 																					 length:result
 																			   freeWhenDone:YES];
 							theCurrentReceive->host = [host retain];
@@ -2185,7 +2185,7 @@ static void MyCFSocketCallback(CFSocketRef, CFSocketCallBackType, CFDataRef, con
 							{
 								buf = realloc(buf, result);
 							}
-							theCurrentReceive->buffer = [[NSData alloc] initWithBytesNoCopy:buf
+							theCurrentReceive->buffer = [[NSMutableData alloc] initWithBytesNoCopy:buf
 																					 length:result
 																			   freeWhenDone:YES];
 							theCurrentReceive->host = [host retain];
@@ -2321,7 +2321,7 @@ static void MyCFSocketCallback(CFSocketRef, CFSocketCallBackType, CFDataRef, con
 			[self doSend:sock];
 			break;
 		default:
-			NSLog (@"AsyncUdpSocket %p received unexpected CFSocketCallBackType %d.", self, type);
+			NSLog (@"AsyncUdpSocket %p received unexpected CFSocketCallBackType %lu.", self, type);
 			break;
 	}
 }
